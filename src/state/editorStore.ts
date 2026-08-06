@@ -28,6 +28,7 @@ export interface EditorState {
   snapStepsPerQuarter: number
   zoom: number
   playheadTick: number
+  lastEditEndTick: number | null
   loop: LoopRange
   dirty: boolean
   persistenceError: boolean
@@ -47,6 +48,7 @@ export interface EditorState {
   setSnap: (stepsPerQuarter: number) => void
   setZoom: (zoom: number) => void
   setPlayhead: (tick: number) => void
+  setLastEditEndTick: (tick: number) => void
   setLoop: (loop: LoopRange) => void
   setTrackRoute: (trackId: string, route: TrackRoute) => void
   toggleMute: (trackId: string) => void
@@ -72,6 +74,42 @@ function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((candidate) => candidate !== id) : [...ids, id]
 }
 
+function noteEndTick(document: MidiDocument, trackId: string, noteIds: readonly string[]) {
+  const ids = new Set(noteIds)
+  const notes = document.tracks
+    .find((track) => track.id === trackId)
+    ?.notes.filter((note) => ids.has(note.id))
+  if (!notes?.length) return null
+  return Math.max(...notes.map((note) => note.startTick + note.durationTicks))
+}
+
+function editEndTick(
+  command: EditorCommand,
+  before: MidiDocument,
+  after: MidiDocument,
+): number | null {
+  switch (command.type) {
+    case 'add-note':
+      return command.note.startTick + command.note.durationTicks
+    case 'add-notes':
+      return command.notes.length
+        ? Math.max(...command.notes.map((note) => note.startTick + note.durationTicks))
+        : null
+    case 'update-notes':
+      return noteEndTick(
+        after,
+        command.trackId,
+        command.updates.map((update) => update.id),
+      )
+    case 'delete-notes':
+      return noteEndTick(before, command.trackId, command.noteIds)
+    case 'quantize-notes':
+      return noteEndTick(after, command.trackId, command.noteIds)
+    default:
+      return null
+  }
+}
+
 export const editorStore = createStore<EditorState>((set, get) => ({
   document: null,
   warnings: [],
@@ -83,6 +121,7 @@ export const editorStore = createStore<EditorState>((set, get) => ({
   snapStepsPerQuarter: 4,
   zoom: 1,
   playheadTick: 0,
+  lastEditEndTick: null,
   loop: { enabled: false, startTick: 0, endTick: 1920 },
   dirty: false,
   persistenceError: false,
@@ -105,6 +144,7 @@ export const editorStore = createStore<EditorState>((set, get) => ({
       set({
         document,
         dirty: true,
+        lastEditEndTick: editEndTick(command, state.document, document) ?? state.lastEditEndTick,
         undoStack,
         redoStack: [],
         selectedNoteIds: state.selectedNoteIds.filter((id) => noteIds.has(id)),
@@ -161,6 +201,7 @@ export const editorStore = createStore<EditorState>((set, get) => ({
       selectedTrackId: musicTrack?.id ?? null,
       selectedNoteIds: [],
       playheadTick: 0,
+      lastEditEndTick: null,
       loop: defaultLoop(document),
       dirty: true,
       statusMessage: '已创建空白 MIDI',
@@ -180,6 +221,7 @@ export const editorStore = createStore<EditorState>((set, get) => ({
       selectedTrackId: musicTrack?.id ?? document.tracks[0]?.id ?? null,
       selectedNoteIds: [],
       playheadTick: 0,
+      lastEditEndTick: null,
       loop: defaultLoop(document),
       dirty: false,
       statusMessage: `已导入 ${document.name}`,
@@ -206,6 +248,7 @@ export const editorStore = createStore<EditorState>((set, get) => ({
       snapStepsPerQuarter: snapshot.snapStepsPerQuarter,
       zoom: snapshot.zoom,
       playheadTick: 0,
+      lastEditEndTick: null,
       loop: snapshot.loop,
       dirty: snapshot.dirty,
       statusMessage: '已恢复上次会话',
@@ -226,6 +269,8 @@ export const editorStore = createStore<EditorState>((set, get) => ({
   setSnap: (snapStepsPerQuarter) => set({ snapStepsPerQuarter }),
   setZoom: (zoom) => set({ zoom: Math.min(4, Math.max(0.5, zoom)) }),
   setPlayhead: (playheadTick) => set({ playheadTick: Math.max(0, Math.round(playheadTick)) }),
+  setLastEditEndTick: (lastEditEndTick) =>
+    set({ lastEditEndTick: Math.max(0, Math.round(lastEditEndTick)) }),
   setLoop: (loop) =>
     set({
       loop: {

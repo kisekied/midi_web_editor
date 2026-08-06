@@ -1,16 +1,30 @@
+import type { Theme } from '../theme'
 import { Icon } from './Icon'
+import { ToolButton } from './Ui'
 
 export function WelcomeScreen({
   loading,
   onImport,
   onNew,
+  onToggleTheme,
+  theme,
 }: {
   loading: boolean
   onImport: () => void
   onNew: () => void
+  onToggleTheme: () => void
+  theme: Theme
 }) {
   return (
     <main className="welcome-screen">
+      <ToolButton
+        className="welcome-theme-toggle"
+        icon={theme === 'dark' ? 'sun' : 'moon'}
+        label={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
+        onClick={onToggleTheme}
+      >
+        <span>{theme === 'dark' ? '浅色' : '深色'}</span>
+      </ToolButton>
       <div className="welcome-ambient welcome-ambient-one" />
       <div className="welcome-ambient welcome-ambient-two" />
       <section className="welcome-card">

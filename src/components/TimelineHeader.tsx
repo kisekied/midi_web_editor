@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useMemo, useState } from 'react'
 import { useStore } from 'zustand'
 import {
   barStartAtOrBefore,
@@ -14,7 +14,9 @@ type SelectedMarker = { kind: 'tempo' | 'signature'; id: string }
 
 interface TimelineHeaderProps {
   contentWidth: number
-  onSeek: (tick: number) => void
+  onScrub: (tick: number) => void
+  onScrubEnd: (tick: number) => void
+  onScrubStart: () => void
   pixelsPerTick: number
   scrollLeft: number
   viewportWidth: number
@@ -22,7 +24,9 @@ interface TimelineHeaderProps {
 
 export function TimelineHeader({
   contentWidth,
-  onSeek,
+  onScrub,
+  onScrubEnd,
+  onScrubStart,
   pixelsPerTick,
   scrollLeft,
   viewportWidth,
@@ -70,7 +74,38 @@ export function TimelineHeader({
 
   const pointerToTick = (clientX: number, target: HTMLElement): number => {
     const rect = target.getBoundingClientRect()
-    return snapTick((clientX - rect.left + scrollLeft) / pixelsPerTick, document.ppq, snap)
+    return snapTick((clientX - rect.left) / pixelsPerTick, document.ppq, snap)
+  }
+
+  const beginRulerScrub = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const target = event.currentTarget
+    onScrubStart()
+    let tick = pointerToTick(event.clientX, target)
+    onScrub(tick)
+
+    const removeListeners = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+    }
+    const onMove = (moveEvent: PointerEvent) => {
+      tick = pointerToTick(moveEvent.clientX, target)
+      onScrub(tick)
+    }
+    const finish = () => {
+      removeListeners()
+      onScrubEnd(tick)
+    }
+    const onUp = (upEvent: PointerEvent) => {
+      tick = pointerToTick(upEvent.clientX, target)
+      finish()
+    }
+    const onCancel = () => finish()
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
   }
 
   return (
@@ -120,11 +155,11 @@ export function TimelineHeader({
             ))}
           </div>
           <div
-            aria-label="时间标尺；点击定位，Shift 拖动设置循环区"
+            aria-label="时间标尺；点击或拖动定位，Shift 拖动设置循环区"
             className="ruler-row"
             onPointerDown={(event) => {
               if (!event.shiftKey) {
-                onSeek(pointerToTick(event.clientX, event.currentTarget))
+                beginRulerScrub(event)
                 return
               }
               const startTick = pointerToTick(event.clientX, event.currentTarget)

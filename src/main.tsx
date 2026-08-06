@@ -4,6 +4,9 @@ import App from './App'
 import { installPlaybackEditGuard } from './audio/playbackEngine'
 import './index.css'
 import { installSessionAutosave } from './state/sessionRepository'
+import { applyTheme, getInitialTheme } from './theme'
+
+applyTheme(getInitialTheme())
 
 const removeAutosave = installSessionAutosave()
 const removePlaybackGuard = installPlaybackEditGuard()

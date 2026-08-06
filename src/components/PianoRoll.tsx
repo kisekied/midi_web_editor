@@ -11,11 +11,13 @@ import { createEditorNote } from '../domain/commands'
 import { documentEndTick, snapTick, tickToMusicalPosition } from '../domain/time'
 import type { MidiDocument, MidiNote } from '../domain/types'
 import { editorStore } from '../state/editorStore'
+import type { Theme } from '../theme'
 import { TimelineHeader } from './TimelineHeader'
 
 const ROW_HEIGHT = 20
 const TOTAL_HEIGHT = ROW_HEIGHT * 128
 const KEY_WIDTH = 74
+const MIDDLE_C_PITCH = 60
 
 interface ViewportState {
   width: number
@@ -55,11 +57,13 @@ function GridCanvas({
   document,
   pixelsPerTick,
   snapStepsPerQuarter,
+  theme,
   viewport,
 }: {
   document: MidiDocument
   pixelsPerTick: number
   snapStepsPerQuarter: number
+  theme: Theme
   viewport: ViewportState
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -76,7 +80,31 @@ function GridCanvas({
     if (!context) return
     context.setTransform(ratio, 0, 0, ratio, 0, 0)
     context.clearRect(0, 0, viewport.width, viewport.height)
-    context.fillStyle = '#0c0f15'
+    const colors =
+      theme === 'light'
+        ? {
+            background: '#f8f9fc',
+            blackKeyRow: 'rgba(30, 41, 59, 0.025)',
+            bar: '#aeb5c2',
+            beat: '#cfd4dd',
+            middleCLine: 'rgba(109, 72, 204, 0.38)',
+            middleCRow: 'rgba(139, 92, 246, 0.08)',
+            octave: '#c8ced8',
+            row: '#e6e9ef',
+            subdivision: '#e1e4ea',
+          }
+        : {
+            background: '#0c0f15',
+            blackKeyRow: 'rgba(255,255,255,0.018)',
+            bar: '#454c5c',
+            beat: '#2b303d',
+            middleCLine: 'rgba(167, 139, 250, 0.45)',
+            middleCRow: 'rgba(139, 92, 246, 0.09)',
+            octave: '#282d39',
+            row: '#191d26',
+            subdivision: '#1b1f28',
+          }
+    context.fillStyle = colors.background
     context.fillRect(0, 0, viewport.width, viewport.height)
 
     const firstPitch = Math.min(127, 127 - Math.floor(viewport.scrollTop / ROW_HEIGHT))
@@ -87,11 +115,20 @@ function GridCanvas({
     for (let pitch = firstPitch; pitch >= lastPitch; pitch -= 1) {
       const y = noteTop(pitch) - viewport.scrollTop
       if (isBlackKey(pitch)) {
-        context.fillStyle = 'rgba(255,255,255,0.018)'
+        context.fillStyle = colors.blackKeyRow
         context.fillRect(0, y, viewport.width, ROW_HEIGHT)
       }
-      context.strokeStyle = pitch % 12 === 0 ? '#282d39' : '#191d26'
-      context.lineWidth = pitch % 12 === 0 ? 1 : 0.5
+      if (pitch === MIDDLE_C_PITCH) {
+        context.fillStyle = colors.middleCRow
+        context.fillRect(0, y, viewport.width, ROW_HEIGHT)
+      }
+      context.strokeStyle =
+        pitch === MIDDLE_C_PITCH
+          ? colors.middleCLine
+          : pitch % 12 === 0
+            ? colors.octave
+            : colors.row
+      context.lineWidth = pitch === MIDDLE_C_PITCH ? 1.5 : pitch % 12 === 0 ? 1 : 0.5
       context.beginPath()
       context.moveTo(0, Math.round(y) + 0.5)
       context.lineTo(viewport.width, Math.round(y) + 0.5)
@@ -109,7 +146,7 @@ function GridCanvas({
       const onBeat = Math.abs(beatRatio - Math.round(beatRatio)) < 0.001
       const position = onBeat ? tickToMusicalPosition(document, Math.round(tick)) : null
       const onBar = position?.beat === 1 && position.tick === 0
-      context.strokeStyle = onBar ? '#454c5c' : onBeat ? '#2b303d' : '#1b1f28'
+      context.strokeStyle = onBar ? colors.bar : onBeat ? colors.beat : colors.subdivision
       context.lineWidth = onBar ? 1.3 : onBeat ? 1 : 0.5
       context.beginPath()
       context.moveTo(Math.round(x) + 0.5, 0)
@@ -118,7 +155,7 @@ function GridCanvas({
       tick += stepTicks
       guard += 1
     }
-  }, [document, pixelsPerTick, snapStepsPerQuarter, viewport])
+  }, [document, pixelsPerTick, snapStepsPerQuarter, theme, viewport])
 
   return (
     <canvas
@@ -284,7 +321,19 @@ function VelocityLane({
   )
 }
 
-export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
+export function PianoRoll({
+  isPlaying,
+  onScrub,
+  onScrubEnd,
+  onScrubStart,
+  theme,
+}: {
+  isPlaying: boolean
+  onScrub: (tick: number) => void
+  onScrubEnd: (tick: number) => void
+  onScrubStart: () => void
+  theme: Theme
+}) {
   const document = useStore(editorStore, (state) => state.document)
   const selectedTrackId = useStore(editorStore, (state) => state.selectedTrackId)
   const selectedNoteIds = useStore(editorStore, (state) => state.selectedNoteIds)
@@ -333,6 +382,27 @@ export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
     return () => observer.disconnect()
   }, [])
 
+  useEffect(() => {
+    if (!isPlaying) return
+    const element = scrollRef.current
+    if (!element || element.clientWidth <= 0) return
+    const playheadLeft = playheadTick * pixelsPerTick
+    const followMargin = Math.min(200, Math.max(80, element.clientWidth * 0.2))
+    const visibleLeft = element.scrollLeft
+    const visibleRight = visibleLeft + element.clientWidth
+    let nextScrollLeft: number | null = null
+
+    if (playheadLeft > visibleRight - followMargin) {
+      nextScrollLeft = playheadLeft - element.clientWidth + followMargin
+    } else if (playheadLeft < visibleLeft) {
+      nextScrollLeft = playheadLeft - followMargin
+    }
+
+    if (nextScrollLeft !== null) {
+      element.scrollLeft = Math.max(0, Math.round(nextScrollLeft))
+    }
+  }, [isPlaying, pixelsPerTick, playheadTick])
+
   const selectedTrack = document?.tracks.find((track) => track.id === selectedTrackId)
   const visiblePitchMax = Math.min(127, 127 - Math.floor(viewport.scrollTop / ROW_HEIGHT) + 2)
   const visiblePitchMin = Math.max(
@@ -377,6 +447,55 @@ export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
       x: clientX - rect.left + viewport.scrollLeft,
       y: clientY - rect.top + viewport.scrollTop,
     }
+  }
+
+  const playheadTickAtPointer = (clientX: number) => {
+    const rect = scrollRef.current?.getBoundingClientRect()
+    if (!rect) return playheadTick
+    const tick = (clientX - rect.left + viewport.scrollLeft) / pixelsPerTick
+    return snapTick(tick, document.ppq, snapStepsPerQuarter)
+  }
+
+  const beginPlayheadDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    onScrubStart()
+    let tick = playheadTickAtPointer(event.clientX)
+    onScrub(tick)
+
+    const removeListeners = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+    }
+    const onMove = (moveEvent: PointerEvent) => {
+      tick = playheadTickAtPointer(moveEvent.clientX)
+      onScrub(tick)
+    }
+    const finish = () => {
+      removeListeners()
+      onScrubEnd(tick)
+    }
+    const onUp = (upEvent: PointerEvent) => {
+      tick = playheadTickAtPointer(upEvent.clientX)
+      finish()
+    }
+    const onCancel = () => finish()
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
+  }
+
+  const movePlayheadFromKeyboard = (event: React.KeyboardEvent<HTMLSpanElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    event.stopPropagation()
+    const step = Math.max(1, Math.round(document.ppq / snapStepsPerQuarter))
+    const tick = Math.max(0, playheadTick + (event.key === 'ArrowLeft' ? -step : step))
+    onScrubStart()
+    onScrub(tick)
+    onScrubEnd(tick)
   }
 
   const beginNoteDrag = (event: ReactPointerEvent, note: MidiNote, mode: DragState['mode']) => {
@@ -482,7 +601,7 @@ export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
   }
 
   const addNoteAtPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('.midi-note')) return
+    if ((event.target as HTMLElement).closest('.midi-note, .roll-playhead')) return
     const point = absolutePoint(event.clientX, event.clientY)
     const startTick = snapTick(point.x / pixelsPerTick, document.ppq, snapStepsPerQuarter)
     const pitch = Math.min(127, Math.max(0, 127 - Math.floor(point.y / ROW_HEIGHT)))
@@ -502,7 +621,9 @@ export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
     <section className="piano-roll-shell" aria-label="钢琴卷帘编辑器">
       <TimelineHeader
         contentWidth={contentWidth}
-        onSeek={onSeek}
+        onScrub={onScrub}
+        onScrubEnd={onScrubEnd}
+        onScrubStart={onScrubStart}
         pixelsPerTick={pixelsPerTick}
         scrollLeft={viewport.scrollLeft}
         viewportWidth={viewport.width}
@@ -512,11 +633,14 @@ export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
           <div style={{ height: TOTAL_HEIGHT, transform: `translateY(${-viewport.scrollTop}px)` }}>
             {Array.from({ length: 128 }, (_, index) => 127 - index).map((pitch) => (
               <div
-                className={`piano-key ${isBlackKey(pitch) ? 'is-black' : ''}`}
+                className={`piano-key ${isBlackKey(pitch) ? 'is-black' : ''} ${pitch === MIDDLE_C_PITCH ? 'is-middle-c' : ''}`}
                 key={pitch}
                 style={{ height: ROW_HEIGHT, top: noteTop(pitch) }}
+                title={pitch === MIDDLE_C_PITCH ? '中央 C（C4，MIDI 60）' : undefined}
               >
-                {pitch % 12 === 0 ? <span>{midiNoteName(pitch)}</span> : null}
+                {pitch % 12 === 0 ? (
+                  <span>{pitch === MIDDLE_C_PITCH ? '中央 C · C4' : midiNoteName(pitch)}</span>
+                ) : null}
               </div>
             ))}
           </div>
@@ -535,6 +659,7 @@ export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
               document={document}
               pixelsPerTick={pixelsPerTick}
               snapStepsPerQuarter={snapStepsPerQuarter}
+              theme={theme}
               viewport={viewport}
             />
             {loop.enabled ? (
@@ -588,9 +713,19 @@ export function PianoRoll({ onSeek }: { onSeek: (tick: number) => void }) {
               <span aria-hidden="true" className="selection-box" style={selectionBox} />
             ) : null}
             <span
-              aria-hidden="true"
+              aria-label="播放头；拖动定位"
+              aria-orientation="horizontal"
+              aria-valuemax={Math.round(contentWidth / pixelsPerTick)}
+              aria-valuemin={0}
+              aria-valuenow={playheadTick}
               className="roll-playhead"
+              onDoubleClick={(event) => event.stopPropagation()}
+              onKeyDown={movePlayheadFromKeyboard}
+              onPointerDown={beginPlayheadDrag}
+              role="slider"
               style={{ left: playheadTick * pixelsPerTick }}
+              tabIndex={0}
+              title="拖动定位播放头"
             />
           </div>
         </div>

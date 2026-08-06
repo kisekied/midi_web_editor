@@ -85,6 +85,8 @@ export function TrackSidebar({
       <div className="track-list" role="listbox" aria-label="MIDI 轨道">
         {musicTracks.map((track, index) => {
           const active = track.id === selectedTrackId
+          const isMuted = muted.includes(track.id)
+          const isSolo = solo.includes(track.id)
           const route = routes[track.id]
           const routeDevice =
             route?.kind === 'midi'
@@ -128,25 +130,27 @@ export function TrackSidebar({
               </div>
               <div className="track-toggles">
                 <button
-                  aria-label={`${muted.includes(track.id) ? '取消静音' : '静音'} ${track.name}`}
-                  className={muted.includes(track.id) ? 'is-on' : ''}
+                  aria-label={`${isMuted ? '取消静音' : '静音'} ${track.name}`}
+                  aria-pressed={isMuted}
+                  className={`track-toggle is-mute ${isMuted ? 'is-on' : ''}`}
                   onClick={(event) => {
                     event.stopPropagation()
                     toggleMute(track.id)
                   }}
-                  title="静音"
+                  title={isMuted ? '取消静音' : '静音'}
                   type="button"
                 >
                   M
                 </button>
                 <button
-                  aria-label={`${solo.includes(track.id) ? '取消独奏' : '独奏'} ${track.name}`}
-                  className={solo.includes(track.id) ? 'is-on is-solo' : ''}
+                  aria-label={`${isSolo ? '取消独奏' : '独奏'} ${track.name}`}
+                  aria-pressed={isSolo}
+                  className={`track-toggle is-solo ${isSolo ? 'is-on' : ''}`}
                   onClick={(event) => {
                     event.stopPropagation()
                     toggleSolo(track.id)
                   }}
-                  title="独奏"
+                  title={isSolo ? '取消独奏' : '独奏'}
                   type="button"
                 >
                   S

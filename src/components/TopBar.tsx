@@ -1,30 +1,42 @@
 import { useStore } from 'zustand'
 import type { MidiOutputDevice } from '../domain/types'
 import { editorStore } from '../state/editorStore'
+import type { Theme } from '../theme'
 import { Icon } from './Icon'
 import { Divider, ToolButton } from './Ui'
 
 interface TopBarProps {
+  canPaste: boolean
   devices: MidiOutputDevice[]
   midiConnected: boolean
   midiSupported: boolean
   onConnectMidi: () => void
+  onCopy: () => void
   onExport: () => void
   onImport: () => void
   onNew: () => void
+  onPaste: () => void
+  onToggleTheme: () => void
+  theme: Theme
 }
 
 export function TopBar({
+  canPaste,
   devices,
   midiConnected,
   midiSupported,
   onConnectMidi,
+  onCopy,
   onExport,
   onImport,
   onNew,
+  onPaste,
+  onToggleTheme,
+  theme,
 }: TopBarProps) {
   const document = useStore(editorStore, (state) => state.document)
   const dirty = useStore(editorStore, (state) => state.dirty)
+  const selectedNoteIds = useStore(editorStore, (state) => state.selectedNoteIds)
   const undoStack = useStore(editorStore, (state) => state.undoStack)
   const redoStack = useStore(editorStore, (state) => state.redoStack)
   const execute = useStore(editorStore, (state) => state.execute)
@@ -86,6 +98,19 @@ export function TopBar({
           onClick={redo}
         />
         <Divider />
+        <ToolButton
+          disabled={!selectedNoteIds.length}
+          icon="copy"
+          label="复制所选音符（⌘/Ctrl+C）"
+          onClick={onCopy}
+        />
+        <ToolButton
+          disabled={!canPaste}
+          icon="paste"
+          label="紧跟上次编辑位置粘贴音符（⌘/Ctrl+V）"
+          onClick={onPaste}
+        />
+        <Divider />
         <button
           className={`midi-status-button ${midiConnected ? 'is-connected' : ''}`}
           disabled={!midiSupported}
@@ -101,6 +126,11 @@ export function TopBar({
           </span>
           <i aria-hidden="true" />
         </button>
+        <ToolButton
+          icon={theme === 'dark' ? 'sun' : 'moon'}
+          label={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
+          onClick={onToggleTheme}
+        />
       </nav>
     </header>
   )

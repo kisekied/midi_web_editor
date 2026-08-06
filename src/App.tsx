@@ -8,11 +8,17 @@ import { TopBar } from './components/TopBar'
 import { TrackSidebar } from './components/TrackSidebar'
 import { TransportBar } from './components/TransportBar'
 import { WelcomeScreen } from './components/WelcomeScreen'
-import { createEditorNote } from './domain/commands'
-import type { MidiNote, MidiOutputDevice } from './domain/types'
+import {
+  createNoteClipboard,
+  type NoteClipboard,
+  pasteNotesAtAvailableTick,
+} from './domain/noteClipboard'
+import { snapTick } from './domain/time'
+import type { MidiOutputDevice } from './domain/types'
 import { MidiCodecClient } from './midi/codecClient'
 import { editorStore } from './state/editorStore'
 import { sessionRepository } from './state/sessionRepository'
+import { applyTheme, getInitialTheme, getStoredTheme, storeTheme, type Theme } from './theme'
 
 interface PendingAction {
   run: () => void | Promise<void>
@@ -43,10 +49,48 @@ export default function App() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [playback, setPlayback] = useState<PlaybackSnapshot>(INITIAL_PLAYBACK)
   const [devices, setDevices] = useState<MidiOutputDevice[]>([])
+  const [noteClipboard, setNoteClipboard] = useState<NoteClipboard | null>(null)
+  const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const [themeIsExplicit, setThemeIsExplicit] = useState(() => getStoredTheme() !== null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const clipboardRef = useRef<MidiNote[]>([])
   const codecRef = useRef<MidiCodecClient | null>(null)
+  const resumeAfterScrubRef = useRef(false)
   if (!codecRef.current) codecRef.current = new MidiCodecClient()
+
+  useEffect(() => applyTheme(theme), [theme])
+
+  useEffect(() => {
+    if (themeIsExplicit) return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (event: MediaQueryListEvent) => setTheme(event.matches ? 'dark' : 'light')
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [themeIsExplicit])
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => {
+      const next = current === 'dark' ? 'light' : 'dark'
+      storeTheme(next)
+      return next
+    })
+    setThemeIsExplicit(true)
+  }, [])
+
+  const beginPlayheadScrub = useCallback(() => {
+    resumeAfterScrubRef.current = playbackEngine.state.playing
+    if (resumeAfterScrubRef.current) playbackEngine.pause()
+  }, [])
+
+  const scrubPlayhead = useCallback((tick: number) => {
+    editorStore.getState().setPlayhead(tick)
+  }, [])
+
+  const endPlayheadScrub = useCallback((tick: number) => {
+    editorStore.getState().setPlayhead(tick)
+    const shouldResume = resumeAfterScrubRef.current
+    resumeAfterScrubRef.current = false
+    if (shouldResume) void playbackEngine.play()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -156,6 +200,45 @@ export default function App() {
     }
   }, [])
 
+  const copySelection = useCallback(() => {
+    const state = editorStore.getState()
+    const track = state.document?.tracks.find((candidate) => candidate.id === state.selectedTrackId)
+    const notes = track?.notes.filter((note) => state.selectedNoteIds.includes(note.id)) ?? []
+    const nextClipboard = createNoteClipboard(notes)
+    if (!nextClipboard) {
+      state.setStatus('请先选择一个或多个音符')
+      return
+    }
+    setNoteClipboard(nextClipboard)
+    state.setLastEditEndTick(Math.max(...notes.map((note) => note.startTick + note.durationTicks)))
+    state.setStatus(`已复制 ${nextClipboard.notes.length} 个音符`)
+  }, [])
+
+  const pasteSelection = useCallback(() => {
+    const state = editorStore.getState()
+    const activeDocument = state.document
+    const track = activeDocument?.tracks.find((candidate) => candidate.id === state.selectedTrackId)
+    if (!noteClipboard) {
+      state.setStatus('剪贴板中没有音符')
+      return
+    }
+    if (!activeDocument || !track || track.kind !== 'music') return
+    const gridTicks = Math.max(1, Math.round(activeDocument.ppq / state.snapStepsPerQuarter))
+    const desiredStartTick =
+      state.lastEditEndTick ??
+      snapTick(state.playheadTick, activeDocument.ppq, state.snapStepsPerQuarter)
+    const paste = pasteNotesAtAvailableTick(noteClipboard, track.notes, desiredStartTick, gridTicks)
+    if (!paste) {
+      state.setStatus('无法在当前轨道找到不重叠的粘贴位置')
+      return
+    }
+    if (!state.execute({ type: 'add-notes', trackId: track.id, notes: paste.notes })) return
+    state.setSelectedNoteIds(paste.notes.map((note) => note.id))
+    state.setStatus(
+      `已粘贴 ${paste.notes.length} 个音符到 tick ${paste.startTick}；下次将紧跟在 tick ${paste.endTick}`,
+    )
+  }, [noteClipboard])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const state = editorStore.getState()
@@ -191,39 +274,13 @@ export default function App() {
         return
       }
       if (commandKey && event.key.toLowerCase() === 'c') {
-        const track = activeDocument.tracks.find(
-          (candidate) => candidate.id === state.selectedTrackId,
-        )
-        clipboardRef.current =
-          track?.notes
-            .filter((note) => state.selectedNoteIds.includes(note.id))
-            .map((note) => ({ ...note })) ?? []
-        state.setStatus(
-          clipboardRef.current.length
-            ? `已复制 ${clipboardRef.current.length} 个音符`
-            : '没有可复制的音符',
-        )
+        event.preventDefault()
+        copySelection()
         return
       }
       if (commandKey && event.key.toLowerCase() === 'v') {
         event.preventDefault()
-        const track = activeDocument.tracks.find(
-          (candidate) => candidate.id === state.selectedTrackId,
-        )
-        if (!track || clipboardRef.current.length === 0) return
-        const offset = Math.max(1, Math.round(activeDocument.ppq / state.snapStepsPerQuarter))
-        const notes = clipboardRef.current.map((note) =>
-          createEditorNote({
-            startTick: note.startTick + offset,
-            durationTicks: note.durationTicks,
-            pitch: note.pitch,
-            velocity: note.velocity,
-            channel: note.channel,
-          }),
-        )
-        if (state.execute({ type: 'add-notes', trackId: track.id, notes })) {
-          state.setSelectedNoteIds(notes.map((note) => note.id))
-        }
+        pasteSelection()
         return
       }
       if ((event.key === 'Delete' || event.key === 'Backspace') && state.selectedTrackId) {
@@ -274,7 +331,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [exportMidi])
+  }, [copySelection, exportMidi, pasteSelection])
 
   const handleFile = (file: File | undefined) => {
     if (!file) return
@@ -307,17 +364,24 @@ export default function App() {
           loading={sessionLoading || fileBusy}
           onImport={requestFileImport}
           onNew={requestNew}
+          onToggleTheme={toggleTheme}
+          theme={theme}
         />
       ) : (
         <main className="editor-app">
           <TopBar
+            canPaste={Boolean(noteClipboard)}
             devices={devices}
             midiConnected={webMidiManager.connected}
             midiSupported={webMidiManager.supported}
             onConnectMidi={connectMidi}
+            onCopy={copySelection}
             onExport={() => void exportMidi()}
             onImport={requestFileImport}
             onNew={requestNew}
+            onPaste={pasteSelection}
+            onToggleTheme={toggleTheme}
+            theme={theme}
           />
           <TransportBar
             onPause={() => playbackEngine.pause()}
@@ -333,7 +397,13 @@ export default function App() {
               midiSupported={webMidiManager.supported}
               onConnectMidi={connectMidi}
             />
-            <PianoRoll onSeek={(tick) => playbackEngine.seek(tick)} />
+            <PianoRoll
+              isPlaying={playback.playing}
+              onScrub={scrubPlayhead}
+              onScrubEnd={endPlayheadScrub}
+              onScrubStart={beginPlayheadScrub}
+              theme={theme}
+            />
           </div>
         </main>
       )}
