@@ -10,6 +10,7 @@ import {
 } from '../domain/time'
 import type { PitchLabelMode } from '../pianoRollPreferences'
 import { editorStore } from '../state/editorStore'
+import { Icon } from './Icon'
 import { Divider, ToolButton } from './Ui'
 
 interface TransportBarProps {
@@ -94,7 +95,7 @@ export function TransportBar({
         >
           <span className={playback.starting ? 'spinner' : ''}>
             {!playback.starting ? (
-              <span aria-hidden="true">{playback.playing ? 'Ⅱ' : '▶'}</span>
+              <Icon className="size-4" name={playback.playing ? 'pause' : 'play'} />
             ) : null}
           </span>
         </button>

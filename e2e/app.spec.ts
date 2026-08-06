@@ -2,9 +2,12 @@ import { expect, test } from '@playwright/test'
 
 test('creates an empty MIDI project and opens the piano roll', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '创建空白 MIDI' }).click()
+  const createButton = page.getByRole('button', { name: '创建空白 MIDI' })
+  await expect(createButton.locator('svg.lucide')).toBeVisible()
+  await createButton.click()
   await expect(page.getByLabel('作品名称')).toHaveValue('未命名作品')
   await expect(page.getByRole('option', { name: /轨道 1/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建 MIDI' }).locator('svg.lucide')).toBeVisible()
   await expect(page.getByLabel('钢琴卷帘编辑器')).toBeVisible()
   await expect(page.getByText('中央 C · C4')).toBeVisible()
 })
@@ -153,12 +156,15 @@ test('follows the playhead by scrolling the piano roll during playback', async (
   const ruler = page.getByRole('slider', { name: /时间标尺/ })
   await ruler.click({ position: { x: viewport.width - 240, y: 15 } })
   const initialScrollLeft = await pianoScroll.evaluate((element) => element.scrollLeft)
-  await page.getByRole('button', { name: '播放（空格）' }).click()
-  await expect(page.getByRole('button', { name: '暂停（空格）' })).toBeVisible()
+  const playButton = page.getByRole('button', { name: '播放（空格）' })
+  await expect(playButton.locator('svg.lucide')).toBeVisible()
+  await playButton.click()
+  const pauseButton = page.getByRole('button', { name: '暂停（空格）' })
+  await expect(pauseButton.locator('svg.lucide')).toBeVisible()
 
   await expect
     .poll(async () => pianoScroll.evaluate((element) => element.scrollLeft), { timeout: 5000 })
     .toBeGreaterThan(initialScrollLeft + 5)
 
-  await page.getByRole('button', { name: '暂停（空格）' }).click()
+  await pauseButton.click()
 })
