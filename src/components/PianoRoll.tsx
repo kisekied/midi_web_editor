@@ -54,6 +54,13 @@ function noteTop(pitch: number): number {
   return (127 - pitch) * ROW_HEIGHT
 }
 
+export function pitchGridLineKind(pitchBelowLine: number): 'middle-c' | 'octave' | 'row' {
+  const pitchAboveLine = pitchBelowLine + 1
+  if (pitchAboveLine === MIDDLE_C_PITCH) return 'middle-c'
+  if (pitchAboveLine <= 127 && pitchAboveLine % 12 === 0) return 'octave'
+  return 'row'
+}
+
 function GridCanvas({
   document,
   pixelsPerTick,
@@ -115,6 +122,7 @@ function GridCanvas({
     )
     for (let pitch = firstPitch; pitch >= lastPitch; pitch -= 1) {
       const y = noteTop(pitch) - viewport.scrollTop
+      const lineKind = pitchGridLineKind(pitch)
       if (isBlackKey(pitch)) {
         context.fillStyle = colors.blackKeyRow
         context.fillRect(0, y, viewport.width, ROW_HEIGHT)
@@ -124,12 +132,12 @@ function GridCanvas({
         context.fillRect(0, y, viewport.width, ROW_HEIGHT)
       }
       context.strokeStyle =
-        pitch === MIDDLE_C_PITCH
+        lineKind === 'middle-c'
           ? colors.middleCLine
-          : pitch % 12 === 0
+          : lineKind === 'octave'
             ? colors.octave
             : colors.row
-      context.lineWidth = pitch === MIDDLE_C_PITCH ? 1.5 : pitch % 12 === 0 ? 1 : 0.5
+      context.lineWidth = lineKind === 'middle-c' ? 1.5 : lineKind === 'octave' ? 1 : 0.5
       context.beginPath()
       context.moveTo(0, Math.round(y) + 0.5)
       context.lineTo(viewport.width, Math.round(y) + 0.5)
