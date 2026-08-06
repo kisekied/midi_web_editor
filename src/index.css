@@ -868,6 +868,10 @@ select:focus-visible,
   color: #4f5869;
 }
 
+.piano-key.is-black span {
+  color: #c7cdd8;
+}
+
 .piano-key.is-middle-c {
   color: #e9e2ff;
   border-bottom-color: rgba(167, 139, 250, 0.62);
@@ -1789,6 +1793,10 @@ select:focus-visible,
 
 :root[data-theme="light"] .piano-key span {
   color: #667083;
+}
+
+:root[data-theme="light"] .piano-key.is-black span {
+  color: #f2f4f8;
 }
 
 :root[data-theme="light"] .piano-key.is-middle-c {

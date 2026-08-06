@@ -16,6 +16,11 @@ import {
 import { snapTick } from './domain/time'
 import type { MidiOutputDevice } from './domain/types'
 import { MidiCodecClient } from './midi/codecClient'
+import {
+  getInitialPitchLabelMode,
+  type PitchLabelMode,
+  storePitchLabelMode,
+} from './pianoRollPreferences'
 import { editorStore } from './state/editorStore'
 import { sessionRepository } from './state/sessionRepository'
 import { applyTheme, getInitialTheme, getStoredTheme, storeTheme, type Theme } from './theme'
@@ -52,6 +57,7 @@ export default function App() {
   const [noteClipboard, setNoteClipboard] = useState<NoteClipboard | null>(null)
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const [themeIsExplicit, setThemeIsExplicit] = useState(() => getStoredTheme() !== null)
+  const [pitchLabelMode, setPitchLabelMode] = useState<PitchLabelMode>(getInitialPitchLabelMode)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const codecRef = useRef<MidiCodecClient | null>(null)
   const resumeAfterScrubRef = useRef(false)
@@ -74,6 +80,14 @@ export default function App() {
       return next
     })
     setThemeIsExplicit(true)
+  }, [])
+
+  const togglePitchLabelMode = useCallback(() => {
+    setPitchLabelMode((current) => {
+      const next = current === 'all' ? 'c-only' : 'all'
+      storePitchLabelMode(next)
+      return next
+    })
   }, [])
 
   const beginPlayheadScrub = useCallback(() => {
@@ -384,10 +398,12 @@ export default function App() {
             theme={theme}
           />
           <TransportBar
+            onTogglePitchLabelMode={togglePitchLabelMode}
             onPause={() => playbackEngine.pause()}
             onPlay={() => void playbackEngine.play()}
             onSeek={(tick) => playbackEngine.seek(tick)}
             onStop={() => playbackEngine.stop()}
+            pitchLabelMode={pitchLabelMode}
             playback={playback}
           />
           <div className="editor-workspace">
@@ -402,6 +418,7 @@ export default function App() {
               onScrub={scrubPlayhead}
               onScrubEnd={endPlayheadScrub}
               onScrubStart={beginPlayheadScrub}
+              pitchLabelMode={pitchLabelMode}
               theme={theme}
             />
           </div>

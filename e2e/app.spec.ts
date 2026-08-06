@@ -9,6 +9,41 @@ test('creates an empty MIDI project and opens the piano roll', async ({ page }) 
   await expect(page.getByText('中央 C · C4')).toBeVisible()
 })
 
+test('toggles and remembers all piano key pitch labels', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '创建空白 MIDI' }).click()
+
+  const toggle = page.locator('.pitch-label-toggle')
+  const labels = page.locator('.piano-key-label')
+  await expect(toggle).toHaveAttribute('aria-label', '显示全部音高标签')
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(toggle).toContainText('音名：C')
+  await expect(labels).toHaveCount(11)
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-label', '仅显示 C 音高标签')
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await expect(toggle).toContainText('音名：全部')
+  await expect(labels).toHaveCount(128)
+  await expect(labels.filter({ hasText: /^D4$/ })).toHaveCount(1)
+  await expect(labels.filter({ hasText: /^C♯4$/ })).toHaveCount(1)
+  await expect(labels.filter({ hasText: /^中央 C · C4$/ })).toHaveCount(1)
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem('zhiyin-pitch-label-mode')))
+    .toBe('all')
+
+  await page.waitForTimeout(700)
+  await page.reload()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await expect(labels).toHaveCount(128)
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(labels).toHaveCount(11)
+  await expect(labels.filter({ hasText: /^D4$/ })).toHaveCount(0)
+  await expect(labels.filter({ hasText: /^C♯4$/ })).toHaveCount(0)
+})
+
 test('pastes immediately after the last edited note instead of at the playhead', async ({
   page,
 }) => {

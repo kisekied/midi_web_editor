@@ -8,15 +8,18 @@ import {
   signatureAtTick,
   tickToMusicalPosition,
 } from '../domain/time'
+import type { PitchLabelMode } from '../pianoRollPreferences'
 import { editorStore } from '../state/editorStore'
 import { Divider, ToolButton } from './Ui'
 
 interface TransportBarProps {
+  pitchLabelMode: PitchLabelMode
   playback: PlaybackSnapshot
   onPause: () => void
   onPlay: () => void
   onSeek: (tick: number) => void
   onStop: () => void
+  onTogglePitchLabelMode: () => void
 }
 
 const SNAP_OPTIONS = [
@@ -28,7 +31,15 @@ const SNAP_OPTIONS = [
   { value: 6, label: '1/16 T' },
 ] as const
 
-export function TransportBar({ playback, onPause, onPlay, onSeek, onStop }: TransportBarProps) {
+export function TransportBar({
+  onPause,
+  onPlay,
+  onSeek,
+  onStop,
+  onTogglePitchLabelMode,
+  pitchLabelMode,
+  playback,
+}: TransportBarProps) {
   const document = useStore(editorStore, (state) => state.document)
   const playheadTick = useStore(editorStore, (state) => state.playheadTick)
   const snap = useStore(editorStore, (state) => state.snapStepsPerQuarter)
@@ -172,6 +183,15 @@ export function TransportBar({ playback, onPause, onPlay, onSeek, onStop }: Tran
         value={zoom}
       />
       <ToolButton compact icon="zoom-in" label="放大" onClick={() => setZoom(zoom + 0.25)} />
+      <ToolButton
+        active={pitchLabelMode === 'all'}
+        aria-pressed={pitchLabelMode === 'all'}
+        className="pitch-label-toggle"
+        label={pitchLabelMode === 'all' ? '仅显示 C 音高标签' : '显示全部音高标签'}
+        onClick={onTogglePitchLabelMode}
+      >
+        <span>音名：{pitchLabelMode === 'all' ? '全部' : 'C'}</span>
+      </ToolButton>
 
       <div className="ml-auto flex items-center gap-1.5">
         <ToolButton label="在播放头添加速度事件" onClick={addTempo}>

@@ -10,6 +10,7 @@ import { useStore } from 'zustand'
 import { createEditorNote } from '../domain/commands'
 import { documentEndTick, snapTick, tickToMusicalPosition } from '../domain/time'
 import type { MidiDocument, MidiNote } from '../domain/types'
+import type { PitchLabelMode } from '../pianoRollPreferences'
 import { editorStore } from '../state/editorStore'
 import type { Theme } from '../theme'
 import { TimelineHeader } from './TimelineHeader'
@@ -326,12 +327,14 @@ export function PianoRoll({
   onScrub,
   onScrubEnd,
   onScrubStart,
+  pitchLabelMode,
   theme,
 }: {
   isPlaying: boolean
   onScrub: (tick: number) => void
   onScrubEnd: (tick: number) => void
   onScrubStart: () => void
+  pitchLabelMode: PitchLabelMode
   theme: Theme
 }) {
   const document = useStore(editorStore, (state) => state.document)
@@ -629,7 +632,7 @@ export function PianoRoll({
         viewportWidth={viewport.width}
       />
       <div className="piano-roll-main">
-        <div className="piano-keyboard" style={{ width: KEY_WIDTH }}>
+        <div aria-hidden="true" className="piano-keyboard" style={{ width: KEY_WIDTH }}>
           <div style={{ height: TOTAL_HEIGHT, transform: `translateY(${-viewport.scrollTop}px)` }}>
             {Array.from({ length: 128 }, (_, index) => 127 - index).map((pitch) => (
               <div
@@ -638,8 +641,10 @@ export function PianoRoll({
                 style={{ height: ROW_HEIGHT, top: noteTop(pitch) }}
                 title={pitch === MIDDLE_C_PITCH ? '中央 C（C4，MIDI 60）' : undefined}
               >
-                {pitch % 12 === 0 ? (
-                  <span>{pitch === MIDDLE_C_PITCH ? '中央 C · C4' : midiNoteName(pitch)}</span>
+                {pitchLabelMode === 'all' || pitch % 12 === 0 ? (
+                  <span className="piano-key-label">
+                    {pitch === MIDDLE_C_PITCH ? '中央 C · C4' : midiNoteName(pitch)}
+                  </span>
                 ) : null}
               </div>
             ))}
