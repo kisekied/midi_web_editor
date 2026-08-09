@@ -87,6 +87,13 @@ export function TrackSidebar({
           const active = track.id === selectedTrackId
           const isMuted = muted.includes(track.id)
           const isSolo = solo.includes(track.id)
+          const isMutedBySolo = solo.length > 0 && !isSolo
+          const muteLabel = isMuted
+            ? `取消静音 ${track.name}`
+            : isMutedBySolo
+              ? `静音 ${track.name}（当前因其他轨道独奏而无声）`
+              : `静音 ${track.name}`
+          const muteTitle = isMuted ? '取消静音' : isMutedBySolo ? '其他轨道正在独奏' : '静音'
           const route = routes[track.id]
           const routeDevice =
             route?.kind === 'midi'
@@ -130,14 +137,17 @@ export function TrackSidebar({
               </div>
               <div className="track-toggles">
                 <button
-                  aria-label={`${isMuted ? '取消静音' : '静音'} ${track.name}`}
+                  aria-label={muteLabel}
                   aria-pressed={isMuted}
-                  className={`track-toggle is-mute ${isMuted ? 'is-on' : ''}`}
+                  className={`track-toggle is-mute ${isMuted ? 'is-on' : ''} ${
+                    isMutedBySolo ? 'is-muted-by-solo' : ''
+                  }`}
+                  data-muted-by-solo={isMutedBySolo || undefined}
                   onClick={(event) => {
                     event.stopPropagation()
                     toggleMute(track.id)
                   }}
-                  title={isMuted ? '取消静音' : '静音'}
+                  title={muteTitle}
                   type="button"
                 >
                   M

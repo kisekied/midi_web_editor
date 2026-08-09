@@ -48,3 +48,44 @@ describe('editor last edit position', () => {
     expect(editorStore.getState().lastEditEndTick).toBe(600)
   })
 })
+
+describe('track monitoring state', () => {
+  it('clears mute when enabling solo on the same track', () => {
+    editorStore.getState().newDocument()
+    const trackId = activeTrackId()
+
+    editorStore.getState().toggleMute(trackId)
+    expect(editorStore.getState().mutedTrackIds).toContain(trackId)
+
+    editorStore.getState().toggleSolo(trackId)
+    expect(editorStore.getState().mutedTrackIds).not.toContain(trackId)
+    expect(editorStore.getState().soloTrackIds).toContain(trackId)
+  })
+
+  it('keeps mute off when disabling solo', () => {
+    editorStore.getState().newDocument()
+    const trackId = activeTrackId()
+
+    editorStore.getState().toggleSolo(trackId)
+    editorStore.getState().toggleMute(trackId)
+    editorStore.getState().toggleSolo(trackId)
+
+    expect(editorStore.getState().mutedTrackIds).not.toContain(trackId)
+    expect(editorStore.getState().soloTrackIds).not.toContain(trackId)
+  })
+
+  it('moves solo to the newly selected track', () => {
+    editorStore.getState().newDocument()
+    const firstTrackId = activeTrackId()
+    expect(editorStore.getState().execute({ type: 'add-track', convertType0: false })).toBe(true)
+    const secondTrackId = editorStore
+      .getState()
+      .document?.tracks.find((track) => track.kind === 'music' && track.id !== firstTrackId)?.id
+    if (!secondTrackId) throw new Error('missing second music track')
+
+    editorStore.getState().toggleSolo(firstTrackId)
+    editorStore.getState().toggleSolo(secondTrackId)
+
+    expect(editorStore.getState().soloTrackIds).toEqual([secondTrackId])
+  })
+})

@@ -284,7 +284,13 @@ export const editorStore = createStore<EditorState>((set, get) => ({
   toggleMute: (trackId) =>
     set((state) => ({ mutedTrackIds: toggleId(state.mutedTrackIds, trackId) })),
   toggleSolo: (trackId) =>
-    set((state) => ({ soloTrackIds: toggleId(state.soloTrackIds, trackId) })),
+    set((state) => {
+      const isEnablingSolo = !state.soloTrackIds.includes(trackId)
+      return {
+        mutedTrackIds: state.mutedTrackIds.filter((candidate) => candidate !== trackId),
+        soloTrackIds: isEnablingSolo ? [trackId] : [],
+      }
+    }),
   setPersistenceError: (persistenceError) => set({ persistenceError }),
   setStatus: (statusMessage) => set({ statusMessage }),
   clearWarnings: () => set({ warnings: [] }),
