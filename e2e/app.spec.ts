@@ -195,3 +195,64 @@ test('follows the playhead by scrolling the piano roll during playback', async (
 
   await pauseButton.click()
 })
+
+test('keeps the ruler arrow aligned with the playhead while following it horizontally', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '创建空白 MIDI' }).click()
+
+  const pianoScroll = page.locator('.piano-scroll')
+  const viewport = await pianoScroll.evaluate((element) => ({
+    left: element.scrollLeft,
+    top: element.scrollTop,
+    width: element.clientWidth,
+  }))
+  const grid = page.getByRole('grid', { name: '音符网格' })
+  await grid.dblclick({
+    position: {
+      x: viewport.left + viewport.width - 60,
+      y: viewport.top + 180,
+    },
+  })
+
+  const ruler = page.getByRole('slider', { name: /时间标尺/ })
+  await ruler.click({ position: { x: viewport.width - 240, y: 15 } })
+  await page.getByRole('button', { name: '播放（空格）' }).click()
+
+  const samples = await page.evaluate(async () => {
+    const scroll = document.querySelector<HTMLElement>('.piano-scroll')
+    const playhead = document.querySelector<HTMLElement>('[aria-label="播放头；拖动定位"]')
+    const arrow = document.querySelector<HTMLElement>('.ruler-playhead')
+    if (!scroll || !playhead || !arrow) throw new Error('Missing piano roll elements')
+
+    const frames: Array<{
+      scrollLeft: number
+      arrowCenter: number
+      playheadCenter: number
+    }> = []
+    const deadline = performance.now() + 2500
+    while (performance.now() < deadline) {
+      await new Promise(requestAnimationFrame)
+      const arrowRect = arrow.getBoundingClientRect()
+      const playheadRect = playhead.getBoundingClientRect()
+      frames.push({
+        scrollLeft: scroll.scrollLeft,
+        arrowCenter: arrowRect.left + arrowRect.width / 2,
+        playheadCenter: playheadRect.left + playheadRect.width / 2,
+      })
+    }
+    return frames
+  })
+
+  const firstSample = samples[0]
+  const lastSample = samples.at(-1)
+  if (!firstSample || !lastSample) throw new Error('No animation frames captured')
+  const scrollDistance = lastSample.scrollLeft - firstSample.scrollLeft
+  const largestMisalignment = Math.max(
+    ...samples.map((sample) => Math.abs(sample.arrowCenter - sample.playheadCenter)),
+  )
+
+  expect(scrollDistance).toBeGreaterThan(5)
+  expect(largestMisalignment).toBeLessThanOrEqual(1)
+})

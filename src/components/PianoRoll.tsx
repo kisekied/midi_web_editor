@@ -2,6 +2,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -393,7 +394,7 @@ export function PianoRoll({
     return () => observer.disconnect()
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isPlaying) return
     const element = scrollRef.current
     if (!element || element.clientWidth <= 0) return
@@ -411,6 +412,10 @@ export function PianoRoll({
 
     if (nextScrollLeft !== null) {
       element.scrollLeft = Math.max(0, Math.round(nextScrollLeft))
+      const scrollLeft = element.scrollLeft
+      setViewport((current) =>
+        current.scrollLeft === scrollLeft ? current : { ...current, scrollLeft },
+      )
     }
   }, [isPlaying, pixelsPerTick, playheadTick])
 
