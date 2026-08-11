@@ -16,6 +16,7 @@ import {
 import { snapTick } from './domain/time'
 import type { MidiOutputDevice } from './domain/types'
 import { MidiCodecClient } from './midi/codecClient'
+import { encodeMusicXml } from './musicxml/encodeMusicXml'
 import {
   getInitialPitchLabelMode,
   type PitchLabelMode,
@@ -31,9 +32,10 @@ interface PendingAction {
 
 const INITIAL_PLAYBACK: PlaybackSnapshot = { playing: false, starting: false, error: null }
 
-function safeFileName(name: string): string {
+function safeFileName(name: string, extension = 'mid'): string {
   const cleaned = name.replace(/[\\/:*?"<>|]+/g, '-').trim() || '未命名作品'
-  return cleaned.toLowerCase().endsWith('.mid') ? cleaned : `${cleaned}.mid`
+  const baseName = cleaned.replace(/\.(mid|midi|musicxml|xml)$/i, '') || '未命名作品'
+  return `${baseName}.${extension}`
 }
 
 function isTextInput(target: EventTarget | null): boolean {
@@ -163,6 +165,27 @@ export default function App() {
     } catch (error) {
       state.setStatus(error instanceof Error ? error.message : '导出 MIDI 失败')
       return false
+    } finally {
+      setFileBusy(false)
+    }
+  }, [])
+
+  const exportMusicXml = useCallback(() => {
+    const state = editorStore.getState()
+    if (!state.document) return
+    setFileBusy(true)
+    try {
+      const xml = encodeMusicXml(state.document)
+      const blob = new Blob([xml], { type: 'application/vnd.recordare.musicxml+xml' })
+      const url = URL.createObjectURL(blob)
+      const link = window.document.createElement('a')
+      link.href = url
+      link.download = safeFileName(state.document.name, 'musicxml')
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      state.setStatus('MusicXML 已导出')
+    } catch (error) {
+      state.setStatus(error instanceof Error ? error.message : '导出 MusicXML 失败')
     } finally {
       setFileBusy(false)
     }
@@ -391,6 +414,7 @@ export default function App() {
             onConnectMidi={connectMidi}
             onCopy={copySelection}
             onExport={() => void exportMidi()}
+            onExportMusicXml={exportMusicXml}
             onImport={requestFileImport}
             onNew={requestNew}
             onPaste={pasteSelection}
@@ -428,7 +452,7 @@ export default function App() {
       {fileBusy && document ? (
         <div className="busy-overlay" role="status">
           <span className="spinner" />
-          正在处理 MIDI…
+          正在处理文件…
         </div>
       ) : null}
       {statusMessage ? (

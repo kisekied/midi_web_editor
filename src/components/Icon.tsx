@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   ClipboardPaste,
   Copy,
   Download,
@@ -25,6 +26,7 @@ import {
 
 const icons = {
   add: Plus,
+  'chevron-down': ChevronDown,
   close: X,
   copy: Copy,
   download: Download,

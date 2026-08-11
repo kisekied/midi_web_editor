@@ -257,6 +257,67 @@ select:focus-visible,
   padding: 0;
 }
 
+.export-menu {
+  position: relative;
+}
+
+.export-menu-trigger[aria-expanded="true"] {
+  color: #eceef3;
+  border-color: #343a48;
+  background: #1b1f29;
+}
+
+.export-chevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 120ms ease;
+}
+
+.export-menu-trigger[aria-expanded="true"] .export-chevron {
+  transform: rotate(180deg);
+}
+
+.export-menu-popover {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 218px;
+  padding: 5px;
+  border: 1px solid #343a48;
+  border-radius: 9px;
+  background: #171b24;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42);
+}
+
+.export-menu-popover button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 10px;
+  color: #dfe2e9;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+
+.export-menu-popover button:hover,
+.export-menu-popover button:focus-visible {
+  background: #242936;
+  outline: none;
+}
+
+.export-menu-popover strong {
+  font-size: 11px;
+}
+
+.export-menu-popover span {
+  color: #858e9f;
+  font-size: 9px;
+}
+
 .midi-status-button {
   display: inline-flex;
   height: 32px;
@@ -1602,6 +1663,31 @@ select:focus-visible,
   color: #6845be;
   border-color: rgba(109, 72, 204, 0.32);
   background: rgba(139, 92, 246, 0.1);
+}
+
+:root[data-theme="light"] .export-menu-trigger[aria-expanded="true"] {
+  color: #252936;
+  border-color: #d3d8e2;
+  background: #eef0f5;
+}
+
+:root[data-theme="light"] .export-menu-popover {
+  border-color: #d3d8e2;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(43, 49, 64, 0.18);
+}
+
+:root[data-theme="light"] .export-menu-popover button {
+  color: #252936;
+}
+
+:root[data-theme="light"] .export-menu-popover button:hover,
+:root[data-theme="light"] .export-menu-popover button:focus-visible {
+  background: #eef0f5;
+}
+
+:root[data-theme="light"] .export-menu-popover span {
+  color: #727b8d;
 }
 
 :root[data-theme="light"] .midi-status-button {

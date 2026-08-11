@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import type { MidiOutputDevice } from '../domain/types'
 import { editorStore } from '../state/editorStore'
@@ -13,6 +14,7 @@ interface TopBarProps {
   onConnectMidi: () => void
   onCopy: () => void
   onExport: () => void
+  onExportMusicXml: () => void
   onImport: () => void
   onNew: () => void
   onPaste: () => void
@@ -28,12 +30,16 @@ export function TopBar({
   onConnectMidi,
   onCopy,
   onExport,
+  onExportMusicXml,
   onImport,
   onNew,
   onPaste,
   onToggleTheme,
   theme,
 }: TopBarProps) {
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const exportButtonRef = useRef<HTMLButtonElement>(null)
   const document = useStore(editorStore, (state) => state.document)
   const dirty = useStore(editorStore, (state) => state.dirty)
   const selectedNoteIds = useStore(editorStore, (state) => state.selectedNoteIds)
@@ -42,6 +48,24 @@ export function TopBar({
   const execute = useStore(editorStore, (state) => state.execute)
   const undo = useStore(editorStore, (state) => state.undo)
   const redo = useStore(editorStore, (state) => state.redo)
+
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!exportMenuRef.current?.contains(event.target as Node)) setExportMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setExportMenuOpen(false)
+      exportButtonRef.current?.focus()
+    }
+    window.addEventListener('pointerdown', closeOnOutsidePointer)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('pointerdown', closeOnOutsidePointer)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [exportMenuOpen])
 
   if (!document) return null
 
@@ -78,12 +102,49 @@ export function TopBar({
         <ToolButton icon="file" label="新建 MIDI" onClick={onNew}>
           <span>新建</span>
         </ToolButton>
-        <ToolButton icon="upload" label="导入 MIDI" onClick={onImport}>
+        <ToolButton icon="download" label="导入 MIDI" onClick={onImport}>
           <span>导入</span>
         </ToolButton>
-        <ToolButton icon="download" label="导出 MIDI（⌘/Ctrl+S）" onClick={onExport}>
-          <span>导出</span>
-        </ToolButton>
+        <div className="export-menu" ref={exportMenuRef}>
+          <ToolButton
+            aria-expanded={exportMenuOpen}
+            aria-haspopup="menu"
+            className="export-menu-trigger"
+            icon="upload"
+            label="导出文件"
+            onClick={() => setExportMenuOpen((open) => !open)}
+            ref={exportButtonRef}
+          >
+            <span>导出</span>
+            <Icon className="export-chevron" name="chevron-down" />
+          </ToolButton>
+          {exportMenuOpen ? (
+            <div aria-label="导出格式" className="export-menu-popover" role="menu">
+              <button
+                onClick={() => {
+                  setExportMenuOpen(false)
+                  onExport()
+                }}
+                role="menuitem"
+                type="button"
+              >
+                <strong>MIDI</strong>
+                <span>Standard MIDI File · ⌘/Ctrl+S</span>
+              </button>
+              <button
+                onClick={() => {
+                  setExportMenuOpen(false)
+                  onExportMusicXml()
+                }}
+                role="menuitem"
+                type="button"
+              >
+                <strong>MusicXML</strong>
+                <span>乐谱交换格式 · .musicxml</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
         <Divider />
         <ToolButton
           disabled={!undoStack.length}

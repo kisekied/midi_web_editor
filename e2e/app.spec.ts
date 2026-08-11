@@ -8,8 +8,27 @@ test('creates an empty MIDI project and opens the piano roll', async ({ page }) 
   await expect(page.getByLabel('作品名称')).toHaveValue('未命名作品')
   await expect(page.getByRole('option', { name: /轨道 1/ })).toBeVisible()
   await expect(page.getByRole('button', { name: '新建 MIDI' }).locator('svg.lucide')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '导入 MIDI' }).locator('svg.lucide-download'),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '导出文件' }).locator('svg.lucide-upload'),
+  ).toBeVisible()
   await expect(page.getByLabel('钢琴卷帘编辑器')).toBeVisible()
   await expect(page.getByText('中央 C · C4')).toBeVisible()
+})
+
+test('downloads the current project as MusicXML', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '创建空白 MIDI' }).click()
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出文件' }).click()
+  await page.getByRole('menuitem', { name: /MusicXML/ }).click()
+  const download = await downloadPromise
+
+  expect(download.suggestedFilename()).toBe('未命名作品.musicxml')
+  await expect(page.getByRole('status')).toContainText('MusicXML 已导出')
 })
 
 test('toggles and remembers all piano key pitch labels', async ({ page }) => {
