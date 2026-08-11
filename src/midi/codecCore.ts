@@ -369,10 +369,9 @@ export function decodeMidi(
     (left, right) => left.tick - right.tick || left.sourceOrder - right.sourceOrder,
   )
 
-  const namedTrack = tracks.find((track) => track.originalName && track.originalName !== '全局事件')
   const document: MidiDocument = {
     id: createId('document'),
-    name: namedTrack?.originalName ?? cleanFileName(fileName),
+    name: cleanFileName(fileName),
     format: parsed.header.format as MidiFormat,
     ppq: parsed.header.ticksPerBeat,
     tracks,

@@ -34,6 +34,7 @@ describe('MIDI codec', () => {
     const result = decodeMidi(fixture(), 'roundtrip.mid')
     const track = result.document.tracks[0]
     expect(result.document.format).toBe(0)
+    expect(result.document.name).toBe('roundtrip')
     expect(track?.name).toBe('Fidelity Track')
     expect(track?.notes[0]).toMatchObject({
       startTick: 0,
@@ -44,6 +45,13 @@ describe('MIDI codec', () => {
     expect(track?.passthroughEvents.map((item) => item.event.type)).toEqual(
       expect.arrayContaining(['controller', 'sysEx', 'unknownMeta', 'programChange']),
     )
+  })
+
+  it('uses the imported file name instead of an embedded track name for the project', () => {
+    const result = decodeMidi(fixture(), '  My Song.MIDI')
+
+    expect(result.document.name).toBe('My Song')
+    expect(result.document.tracks[0]?.name).toBe('Fidelity Track')
   })
 
   it('preserves unsupported event track, tick and payload after editing a note', () => {
