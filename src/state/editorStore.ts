@@ -12,6 +12,10 @@ import type {
 
 enablePatches()
 
+export const MIN_ZOOM = 0.25
+export const MAX_ZOOM = 4
+export const ZOOM_STEP = 0.25
+
 interface HistoryEntry {
   patches: Patch[]
   inversePatches: Patch[]
@@ -267,7 +271,7 @@ export const editorStore = createStore<EditorState>((set, get) => ({
     })
   },
   setSnap: (snapStepsPerQuarter) => set({ snapStepsPerQuarter }),
-  setZoom: (zoom) => set({ zoom: Math.min(4, Math.max(0.5, zoom)) }),
+  setZoom: (zoom) => set({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)) }),
   setPlayhead: (playheadTick) => set({ playheadTick: Math.max(0, Math.round(playheadTick)) }),
   setLastEditEndTick: (lastEditEndTick) =>
     set({ lastEditEndTick: Math.max(0, Math.round(lastEditEndTick)) }),

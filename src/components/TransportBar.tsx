@@ -9,7 +9,7 @@ import {
   tickToMusicalPosition,
 } from '../domain/time'
 import type { PitchLabelMode } from '../pianoRollPreferences'
-import { editorStore } from '../state/editorStore'
+import { editorStore, MAX_ZOOM, MIN_ZOOM, ZOOM_STEP } from '../state/editorStore'
 import { Icon } from './Icon'
 import { Divider, ToolButton } from './Ui'
 
@@ -172,18 +172,18 @@ export function TransportBar({
 
       <Divider />
 
-      <ToolButton compact icon="zoom-out" label="缩小" onClick={() => setZoom(zoom - 0.25)} />
+      <ToolButton compact icon="zoom-out" label="缩小" onClick={() => setZoom(zoom - ZOOM_STEP)} />
       <input
         aria-label="水平缩放"
         className="zoom-slider"
-        max="4"
-        min="0.5"
+        max={MAX_ZOOM}
+        min={MIN_ZOOM}
         onChange={(event) => setZoom(Number(event.currentTarget.value))}
-        step="0.25"
+        step={ZOOM_STEP}
         type="range"
         value={zoom}
       />
-      <ToolButton compact icon="zoom-in" label="放大" onClick={() => setZoom(zoom + 0.25)} />
+      <ToolButton compact icon="zoom-in" label="放大" onClick={() => setZoom(zoom + ZOOM_STEP)} />
       <ToolButton
         active={pitchLabelMode === 'all'}
         aria-pressed={pitchLabelMode === 'all'}

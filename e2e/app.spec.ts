@@ -47,6 +47,18 @@ test('toggles and remembers all piano key pitch labels', async ({ page }) => {
   await expect(labels.filter({ hasText: /^C♯4$/ })).toHaveCount(0)
 })
 
+test('zooms out to a quarter scale', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '创建空白 MIDI' }).click()
+
+  const zoom = page.getByRole('slider', { name: '水平缩放' })
+  const zoomOut = page.getByRole('button', { name: '缩小' })
+  await expect(zoom).toHaveAttribute('min', '0.25')
+
+  await zoomOut.click({ clickCount: 4 })
+  await expect(zoom).toHaveValue('0.25')
+})
+
 test('pastes immediately after the last edited note instead of at the playhead', async ({
   page,
 }) => {

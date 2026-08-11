@@ -89,3 +89,15 @@ describe('track monitoring state', () => {
     expect(editorStore.getState().soloTrackIds).toEqual([secondTrackId])
   })
 })
+
+describe('editor zoom', () => {
+  it('allows zooming out to a quarter scale and clamps values to the supported range', () => {
+    editorStore.getState().setZoom(0)
+    expect(editorStore.getState().zoom).toBe(0.25)
+
+    editorStore.getState().setZoom(5)
+    expect(editorStore.getState().zoom).toBe(4)
+
+    editorStore.getState().setZoom(1)
+  })
+})
