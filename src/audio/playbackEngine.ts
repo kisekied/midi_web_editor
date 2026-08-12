@@ -116,6 +116,7 @@ class PlaybackEngine {
   private snapshot: PlaybackSnapshot = { playing: false, starting: false, error: null }
   private readonly listeners = new Set<PlaybackListener>()
   private readonly synths = new Map<string, TrackSynths>()
+  private readonly masterGain = new Tone.Gain(1).toDestination()
 
   subscribe(listener: PlaybackListener): () => void {
     this.listeners.add(listener)
@@ -125,6 +126,11 @@ class PlaybackEngine {
 
   get state(): PlaybackSnapshot {
     return this.snapshot
+  }
+
+  setMasterVolume(percent: number): void {
+    const normalized = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 100))
+    this.masterGain.gain.rampTo(normalized / 100, 0.03)
   }
 
   async play(): Promise<void> {
@@ -185,6 +191,7 @@ class PlaybackEngine {
       synth.drum.dispose()
     }
     this.synths.clear()
+    this.masterGain.dispose()
     this.listeners.clear()
   }
 
@@ -297,7 +304,7 @@ class PlaybackEngine {
     const melodic = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'triangle8' },
       envelope: { attack: 0.006, decay: 0.15, sustain: 0.35, release: 0.4 },
-    }).toDestination()
+    }).connect(this.masterGain)
     melodic.maxPolyphony = 48
     melodic.volume.value = -10
     const drum = new Tone.MembraneSynth({
@@ -305,7 +312,7 @@ class PlaybackEngine {
       octaves: 6,
       envelope: { attack: 0.001, decay: 0.22, sustain: 0, release: 0.08 },
       volume: -8,
-    }).toDestination()
+    }).connect(this.masterGain)
     const synths = { melodic, drum }
     this.synths.set(trackId, synths)
     return synths

@@ -22,6 +22,12 @@ import {
   type PitchLabelMode,
   storePitchLabelMode,
 } from './pianoRollPreferences'
+import {
+  clampPlaybackVolume,
+  getInitialPlaybackVolume,
+  type PlaybackVolumePreference,
+  storePlaybackVolume,
+} from './playbackVolumePreference'
 import { editorStore } from './state/editorStore'
 import { sessionRepository } from './state/sessionRepository'
 import { applyTheme, getInitialTheme, getStoredTheme, storeTheme, type Theme } from './theme'
@@ -60,12 +66,39 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const [themeIsExplicit, setThemeIsExplicit] = useState(() => getStoredTheme() !== null)
   const [pitchLabelMode, setPitchLabelMode] = useState<PitchLabelMode>(getInitialPitchLabelMode)
+  const [playbackVolume, setPlaybackVolumeState] =
+    useState<PlaybackVolumePreference>(getInitialPlaybackVolume)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const codecRef = useRef<MidiCodecClient | null>(null)
   const resumeAfterScrubRef = useRef(false)
   if (!codecRef.current) codecRef.current = new MidiCodecClient()
 
   useEffect(() => applyTheme(theme), [theme])
+
+  useEffect(() => playbackEngine.setMasterVolume(playbackVolume.volume), [playbackVolume.volume])
+
+  const setPlaybackVolume = useCallback((value: number) => {
+    setPlaybackVolumeState((current) => {
+      const volume = clampPlaybackVolume(value)
+      const next = {
+        volume,
+        lastNonZeroVolume: volume > 0 ? volume : current.lastNonZeroVolume,
+      }
+      storePlaybackVolume(next)
+      return next
+    })
+  }, [])
+
+  const togglePlaybackMute = useCallback(() => {
+    setPlaybackVolumeState((current) => {
+      const next =
+        current.volume === 0
+          ? { ...current, volume: current.lastNonZeroVolume }
+          : { volume: 0, lastNonZeroVolume: current.volume }
+      storePlaybackVolume(next)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (themeIsExplicit) return
@@ -422,13 +455,16 @@ export default function App() {
             theme={theme}
           />
           <TransportBar
+            onChangeVolume={setPlaybackVolume}
             onTogglePitchLabelMode={togglePitchLabelMode}
+            onToggleMute={togglePlaybackMute}
             onPause={() => playbackEngine.pause()}
             onPlay={() => void playbackEngine.play()}
             onSeek={(tick) => playbackEngine.seek(tick)}
             onStop={() => playbackEngine.stop()}
             pitchLabelMode={pitchLabelMode}
             playback={playback}
+            volume={playbackVolume.volume}
           />
           <div className="editor-workspace">
             <TrackSidebar

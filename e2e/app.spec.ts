@@ -31,6 +31,40 @@ test('downloads the current project as MusicXML', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('MusicXML 已导出')
 })
 
+test('adjusts, mutes and remembers the internal playback volume', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '创建空白 MIDI' }).click()
+
+  const volumeButton = page.getByRole('button', { name: '播放总音量：100%' })
+  await volumeButton.click()
+  const dialog = page.getByRole('dialog', { name: '播放音量设置' })
+  const slider = dialog.getByRole('slider', { name: '播放音量' })
+  await expect(slider).toHaveValue('100')
+
+  await slider.fill('37')
+  await expect(dialog).toContainText('37%')
+  await expect(page.getByRole('button', { name: '播放总音量：37%' })).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem('zhiyin-playback-volume')))
+    .toBe('{"volume":37,"lastNonZeroVolume":37}')
+
+  await dialog.getByRole('button', { name: '静音' }).click()
+  await expect(page.getByRole('button', { name: '播放总音量：已静音' })).toBeVisible()
+  await dialog.getByRole('button', { name: '恢复音量' }).click()
+  await expect(page.getByRole('button', { name: '播放总音量：37%' })).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('button', { name: '播放总音量：37%' })).toBeFocused()
+
+  await page.waitForTimeout(700)
+  await page.reload()
+  await expect(page.getByRole('button', { name: '播放总音量：37%' })).toBeVisible()
+  await page.getByRole('button', { name: '播放总音量：37%' }).click()
+  await page.getByLabel('作品名称').click()
+  await expect(page.getByRole('dialog', { name: '播放音量设置' })).toBeHidden()
+})
+
 test('toggles and remembers all piano key pitch labels', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '创建空白 MIDI' }).click()

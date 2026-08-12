@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import type { PlaybackSnapshot } from '../audio/playbackEngine'
 import {
@@ -18,9 +18,12 @@ interface TransportBarProps {
   playback: PlaybackSnapshot
   onPause: () => void
   onPlay: () => void
+  onChangeVolume: (volume: number) => void
   onSeek: (tick: number) => void
   onStop: () => void
   onTogglePitchLabelMode: () => void
+  onToggleMute: () => void
+  volume: number
 }
 
 const SNAP_OPTIONS = [
@@ -33,14 +36,20 @@ const SNAP_OPTIONS = [
 ] as const
 
 export function TransportBar({
+  onChangeVolume,
   onPause,
   onPlay,
   onSeek,
   onStop,
   onTogglePitchLabelMode,
+  onToggleMute,
   pitchLabelMode,
   playback,
+  volume,
 }: TransportBarProps) {
+  const [volumeOpen, setVolumeOpen] = useState(false)
+  const volumeControlRef = useRef<HTMLDivElement>(null)
+  const volumeButtonRef = useRef<HTMLButtonElement>(null)
   const document = useStore(editorStore, (state) => state.document)
   const playheadTick = useStore(editorStore, (state) => state.playheadTick)
   const snap = useStore(editorStore, (state) => state.snapStepsPerQuarter)
@@ -52,6 +61,24 @@ export function TransportBar({
   const setSnap = useStore(editorStore, (state) => state.setSnap)
   const setZoom = useStore(editorStore, (state) => state.setZoom)
   const setLoop = useStore(editorStore, (state) => state.setLoop)
+
+  useEffect(() => {
+    if (!volumeOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!volumeControlRef.current?.contains(event.target as Node)) setVolumeOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setVolumeOpen(false)
+      volumeButtonRef.current?.focus()
+    }
+    window.addEventListener('pointerdown', closeOnOutsidePointer)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('pointerdown', closeOnOutsidePointer)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [volumeOpen])
 
   const activeTempo = useMemo(() => {
     if (!document) return undefined
@@ -105,6 +132,43 @@ export function TransportBar({
           label={loop.enabled ? '关闭循环' : '开启循环'}
           onClick={() => setLoop({ ...loop, enabled: !loop.enabled })}
         />
+        <div className="volume-control" ref={volumeControlRef}>
+          <ToolButton
+            active={volumeOpen}
+            aria-expanded={volumeOpen}
+            aria-haspopup="dialog"
+            icon={volume === 0 ? 'volume-off' : volume < 50 ? 'volume-low' : 'volume-on'}
+            label={volume === 0 ? '播放总音量：已静音' : `播放总音量：${volume}%`}
+            onClick={() => setVolumeOpen((open) => !open)}
+            ref={volumeButtonRef}
+          />
+          {volumeOpen ? (
+            <div
+              aria-label="播放音量设置"
+              aria-modal="false"
+              className="volume-popover"
+              role="dialog"
+            >
+              <div className="volume-popover-heading">
+                <strong>播放音量</strong>
+                <span>{volume}%</span>
+              </div>
+              <input
+                aria-label="播放音量"
+                max="100"
+                min="0"
+                onChange={(event) => onChangeVolume(Number(event.currentTarget.value))}
+                step="1"
+                type="range"
+                value={volume}
+              />
+              <button className="volume-mute-button" onClick={onToggleMute} type="button">
+                <Icon name={volume === 0 ? 'volume-on' : 'volume-off'} />
+                {volume === 0 ? '恢复音量' : '静音'}
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <Divider />
